@@ -1,49 +1,60 @@
-pipeline{
+pipeline {
   agent{
     docker{
       image 'maven:3.6.1-jdk-8-slim'
       args '-v $HOME/.m2:/root/.m2'
     }
   }
+
+  tools{
+    maven 'maven 3.6.1'
+  }
   stages{
-    stage('build'){
+    stage("build"){
+      when{
+        changeset "**/worker/**"
+      }
       steps{
-        echo 'building worker app'
+        echo 'Compiling worker app'
         dir('worker'){
           sh 'mvn compile'
+        }
       }
     }
-  }
-
-    stage('test'){
+    stage("test"){
+      when{
+          changeset "**/worker/**"
+      }
       steps{
-        echo 'running unit tests on worker app'
+        echo 'Running Unit Tets on worker app'
         dir('worker'){
           sh 'mvn clean test'
+        }
       }
     }
-  }
-
-    stage('package'){
+    stage("package"){
+       when{
+          branch 'master'
+          changeset "**/worker/**"
+      }
       steps{
-        echo 'packaging worker app into a jarfile'
+        echo 'Packaging worker app'
         dir('worker'){
           sh 'mvn package -DskipTests'
-          archiveArtifacts artifacts: '**/target/*.jar', fingerprint:
-true
+          archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
+        }
       }
     }
   }
-}
   post{
     always{
-      echo 'the job is complete'
-      }
-      failure {
-          slackSend (channel: "instavoteg2", message: "Build Failed(Ridi) - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)")
-      }
-      success {
-          slackSend (channel: "instavoteg2", message: "Build Succeeded (Ridi) - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)")
+      echo 'Building multibranch pipeline for worker is completed..'
+    }
+    failure {
+      slackSend (channel: "instavoteg2", message: "Build Failed - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)")
+    }
+    success {
+      slackSend (channel: "instavoteg2", message: "Build Succeeded - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)")
     }
   }
 }
