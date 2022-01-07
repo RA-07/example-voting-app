@@ -1,52 +1,111 @@
-version: "3.8"
+pipeline {
+  agent none
 
-volumes:
-  db-data:
+  tools{
+    maven 'maven 3.6.1'
+  }
+  
+  
+  stages{
+    stage("build"){
+      when{
+        changeset "**/worker/**"
+      }
+      agent{
+        docker{
+          image 'maven:3.6.1-jdk-8-slim'
+          args '-v $HOME/.m2:/root/.m2'
+        }
+      }
+      steps{
+        echo 'Compiling worker app'
+        dir('worker'){
+          sh 'mvn compile'
+        }
+      }
+    }
+    
+    
+    stage("test"){
+      when{
+          changeset "**/worker/**"
+      }
+      agent{
+        docker{
+          image 'maven:3.6.1-jdk-8-slim'
+          args '-v $HOME/.m2:/root/.m2'
+        }
+      }
+      steps{
+        echo 'Running Unit Tets on worker app'
+        dir('worker'){
+          sh 'mvn clean test'
+        }
+      }
+    }
+    
+    
+    stage("package"){
+      when{
+          changeset "**/worker/**"
+      }
+      
+      agent{
+        docker{
+          image 'maven:3.6.1-jdk-8-slim'
+          args '-v $HOME/.m2:/root/.m2'
+        }
+      }
+      
+      steps{
+        echo 'Packaging worker app'
+        dir('worker'){
+          sh 'mvn package -DskipTests'
+          archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
+        }
+      }
+    }
+    
+    stage('docker-package'){
+          agent any
+          when{
+            changeset "**/worker/**"
+          }
+          steps{
+            echo 'Packaging worker app with docker'
+            script{
+              docker.withRegistry('https://index.docker.io/v1/', 'dockerlogin') {
+                  def workerImage = docker.build("ilosaurus/worker:v${env.BUILD_ID}", "./worker")
+                  workerImage.push()
+                  workerImage.push("${env.BUILD_ID}")
+                  workerImage.push("latest")
+              }
+            }
+          }
+      }
 
-networks:
-  instavote:
-    driver: bridge
+      stage('deploy to dev'){
+          agent any
+          when{
+            branch 'master'
+          }
+          steps{
+            echo 'Deploy instavote app with docker compose'
+            sh 'docker-compose down --remove '
+            sh 'docker-compose up -d'
+          }
+    }
 
-services:
-  vote:
-    image: ilosaurus/vote:latest
-    build: ./vote
-    ports:
-      - 5000:80
-    depends_on:
-      - redis
-    networks:
-      - instavote
-
-  redis:
-    image: redis:alpine
-    networks:
-      - instavote
-
-  db:
-    image: postgres:9.4
-    volumes:
-      - "db-data:/var/lib/postgresql/data"
-    networks:
-      - instavote
-    environment:
-      - POSTGRES_HOST_AUTH_METHOD=trust
-
-  result:
-    image: ilosaurus/result:latest
-    build: ./vote
-    ports:
-      - 5001:4000
-    depends_on:
-      - db
-    networks:
-      - instavote
-
-  worker:
-    image: ilosaurus/worker:latest
-    build: ./vote
-    depends_on:
-      - redis
-      - db
-    networks:
-      - instavote
+  }
+  post{
+    always{
+      echo 'Building multibranch pipeline for worker is completed..'
+    }
+    failure {
+      slackSend (channel: "instavoteg2", message: "Build Failed - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)")
+    }
+    success {
+      slackSend (channel: "instavoteg2", message: "Build Succeeded - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)")
+    }
+  }
+}
