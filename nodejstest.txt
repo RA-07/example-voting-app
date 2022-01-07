@@ -1,3 +1,4 @@
 how to run nodejs
 npm instal
 ini quiz
+pool scm trigger di jenkins pake H2/* * * *
