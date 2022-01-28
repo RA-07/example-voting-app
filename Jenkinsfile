@@ -206,7 +206,7 @@ pipeline {
       slackSend (channel: "instavoteg2", message: "Build Failed - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)")
     }
     success {
-      slackSend (channel: "instavoteg2", message: "Build Succeeded "ridi"- ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)")
+      slackSend (channel: "instavoteg2", message: "Build Succeeded - ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)")
     }
   }
 }
