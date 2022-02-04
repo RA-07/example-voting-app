@@ -9,3 +9,4 @@ ngedit lagi
 
 
 trus
+terahir deh
